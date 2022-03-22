@@ -1,5 +1,5 @@
-#ifndef THREADPOOL_H
-#define THREADPOOL_H
+#ifndef WNTHREADPOOL_H
+#define WNTHREADPOOL_H
 
 #include <condition_variable>
 #include <deque>
@@ -61,4 +61,4 @@ private:
     size_t maxQueueSize_;
     bool running_;
 };
-#endif // THREADPOOL_H
+#endif // WNTHREADPOOL_H
