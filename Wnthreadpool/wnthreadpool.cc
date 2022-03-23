@@ -1,6 +1,6 @@
 #include "wnthreadpool.h"
 
-#include <assert.h>
+#include <cassert>
 #include <cstdio>
 
 ThreadPool::~ThreadPool()
