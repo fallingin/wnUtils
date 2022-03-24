@@ -1,8 +1,9 @@
 #ifndef WNSTRING_H
 #define WNSTRING_H
 #include <atomic>
+#include <cassert>
 #include <cstddef>
-
+#include <cstring>
 
 // small strings（SSO）时，使用 union 中的 Char small_存储字符串，即对象本身的栈空间。
 
@@ -30,13 +31,54 @@ struct RefCounted {
     std::atomic<size_t> refCount_; // 共享字符串的引用计数
     char data_[1]; // flexible array. 存放字符串。
 
+    // 获得data_的数据偏移，也是refCount_的首地址到data_首地址的长度
+    constexpr static size_t getDataOffset()
+    {
+        return offsetof(RefCounted, data_);
+    }
     // 创建一个RefCounted
-    static RefCounted* create(size_t* size);
-    static RefCounted* create(const char* data, size_t* size);
-    static void incrementRefs(char* p); // 增加一个引用
-    static void decrementRefs(char* p); // 减少一个引用
+    static RefCounted* create(size_t* size)
+    {
+        const size_t allocSize = getDataOffset() + (*size + 1) * sizeof(char);
+        auto result = new RefCounted;
+        result->refCount_.store(1, std::memory_order_release);
+        *size = (allocSize - getDataOffset()) - 1;
+        return result;
+    }
+    static RefCounted* create(const char* data, size_t* size)
+    {
+        const size_t effectiveSize = *size;
+        auto result = create(size);
 
-    // 其他函数定义
+        memcpy(result->data_, data, effectiveSize);
+        return result;
+    }
+    // 从data获取RefCounted*
+    static RefCounted* fromData(char* p)
+    {
+        return static_cast<RefCounted*>(static_cast<void*>(
+            static_cast<unsigned char*>(static_cast<void*>(p)) - getDataOffset()));
+    }
+    // 获得引用数量
+    static size_t refs(char* p)
+    {
+        return fromData(p)->refCount_.load(std::memory_order_acquire);
+    }
+    // 增加一个引用
+    static void incrementRefs(char* p)
+    {
+        fromData(p)->refCount_.fetch_add(1, std::memory_order_acq_rel);
+    }
+    // 减少一个引用
+    static void decrementRefs(char* p)
+    {
+        auto const dis = fromData(p);
+        size_t oldcnt = dis->refCount_.fetch_sub(1, std::memory_order_acq_rel);
+        assert(oldcnt > 0);
+        if (oldcnt == 1) {
+            delete dis;
+        }
+    }
 };
 
 struct MediumLarge {
@@ -62,8 +104,13 @@ constexpr static uint8_t maxMediumSize = 0xFF; // 11111111(255)
 
 class Wnstring {
 public:
-    Wnstring(const char* const data,const size_t size,bool disableSSO = WNSTRING_DISABLE_SSO);
+    Wnstring(const char* const data, const size_t size, bool disableSSO = WNSTRING_DISABLE_SSO);
     ~Wnstring();
+
+    size_t capacity() const;
+    size_t size() const;
+    const char* c_str() const;
+
 
 private:
     union {
@@ -74,12 +121,12 @@ private:
 
     void setSmallSize(size_t s);
     Category category() const;
-    size_t capacity() const;
-    size_t size() const;
 
     void initSmall(const char* const data, const size_t size);
     void initMedium(const char* const data, const size_t size);
     void initLarge(const char* const data, const size_t size);
+
+    
 };
 
 #endif // WNSTRING_H
