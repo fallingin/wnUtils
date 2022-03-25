@@ -3,9 +3,8 @@
 #include <atomic>
 #include <cassert>
 #include <cstddef>
-#include <cstring>
 #include <cstdlib>
-
+#include <cstring>
 
 // small strings（SSO）时，使用 union 中的 Char small_存储字符串，即对象本身的栈空间。
 
@@ -19,11 +18,13 @@ constexpr static size_t kCategoryShift = (sizeof(size_t) - 1) * 8;
 constexpr static size_t capacityExtractMask = ~(static_cast<size_t>(categoryExtractMask) << kCategoryShift);
 constexpr static bool WNSTRING_DISABLE_SSO = false;
 
-inline void* checkedRealloc(void* ptr, size_t size) {
+inline void* checkedRealloc(void* ptr, size_t size)
+{
     void* p = realloc(ptr, size);
     return p;
 }
-inline void* smartRealloc(void* p,const size_t currentSize,const size_t currentCapacity,const size_t newCapacity) {
+inline void* smartRealloc(void* p, const size_t currentSize, const size_t currentCapacity, const size_t newCapacity)
+{
     assert(p);
     assert(currentSize <= currentCapacity && currentCapacity < newCapacity);
     auto const slack = currentCapacity - currentSize;
@@ -37,7 +38,6 @@ inline void* smartRealloc(void* p,const size_t currentSize,const size_t currentC
     // If there's not too much slack, we realloc in hope of coalescing
     return checkedRealloc(p, newCapacity);
 }
-
 
 typedef uint8_t category_type;
 enum class Category : category_type {
@@ -76,7 +76,7 @@ struct RefCounted {
         return result;
     }
     // 从data获取RefCounted*
-    // 转换不同类型结构体的指针并做运算，这里的做法是 ： 
+    // 转换不同类型结构体的指针并做运算，这里的做法是 ：
     // char* -> void* -> unsigned char* -> 与size_t做减法 -> void * -> RefCounted*
     static RefCounted* fromData(char* p)
     {
@@ -154,18 +154,16 @@ public:
     const char& operator[](size_t pos) const;
     bool empty() const;
 
-    Wnstring& operator=(const Wnstring& str) ;// fix
-    Wnstring& operator=(const char* const s) ;// fix
-    bool operator==(const Wnstring& str) const;// fix
-    Wnstring operator+(const Wnstring& rhs);// fix
-    
+    Wnstring& operator=(const Wnstring& str); // fix
+    Wnstring& operator=(const char* const s); // fix
+    bool operator==(const Wnstring& str) const; // fix
+    Wnstring operator+(const Wnstring& rhs); // fix
+
     void clear(); // fix
-    size_t find (const char* const s, size_t pos = 0) const; // fix BM
-    size_t find (const Wnstring& str, size_t pos = 0) const; // fix BM
+    size_t find(const char* const s, size_t pos = 0) const; // fix BM
+    size_t find(const Wnstring& str, size_t pos = 0) const; // fix BM
     void pop_back(); // fix
     int compare(const Wnstring& str) const; // fix
-
-
 
 private:
     union {
@@ -186,7 +184,6 @@ private:
     void destroyMediumLarge();
     char* mutableDataLarge();
     void unshare(size_t minCapacity = 0);
-    
 };
 
 #endif // WNSTRING_H

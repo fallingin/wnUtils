@@ -15,20 +15,21 @@ Wnstring::Wnstring(const char* const data, const size_t size, bool disableSSO)
         initLarge(data, size);
     }
 }
-Wnstring::Wnstring(const Wnstring& rhs){
+Wnstring::Wnstring(const Wnstring& rhs)
+{
     assert(&rhs != this);
     switch (rhs.category()) {
-        case Category::isSmall:
-            copySmall(rhs);
-            break;
-        case Category::isMedium:
-            copyMedium(rhs);
-            break;
-        case Category::isLarge:
-            copyLarge(rhs);
-            break;
-        default:
-            break;
+    case Category::isSmall:
+        copySmall(rhs);
+        break;
+    case Category::isMedium:
+        copyMedium(rhs);
+        break;
+    case Category::isLarge:
+        copyLarge(rhs);
+        break;
+    default:
+        break;
     }
 }
 // 首先，如果传入的字符串地址是内存对齐的，则配合 reinterpret_cast 进行 word-wise copy，提高效率。
@@ -89,7 +90,7 @@ void Wnstring::copyMedium(const Wnstring& rhs)
     auto const allocSize = (1 + rhs.ml_.size_) * sizeof(char);
     ml_.data_ = new char[allocSize];
 
-    memcpy(ml_.data_,rhs.ml_.data_, rhs.ml_.size_ + 1);
+    memcpy(ml_.data_, rhs.ml_.data_, rhs.ml_.size_ + 1);
     ml_.size_ = rhs.ml_.size_;
     ml_.setCapacity(allocSize - 1, Category::isMedium);
 }
@@ -165,25 +166,25 @@ const char* Wnstring::c_str() const
     ptr = (category() == Category::isSmall) ? small_ : ptr;
     return ptr;
 }
-char& Wnstring::operator[](size_t pos) 
+char& Wnstring::operator[](size_t pos)
 {
     char* begin = nullptr;
     switch (category()) {
-        case Category::isSmall:
-            begin = small_;
-            break;
-        case Category::isMedium:
-            begin = ml_.data_;
-            break;
-        case Category::isLarge:
-            begin = mutableDataLarge();
-            break;
-        default:
-            break;
-        }
+    case Category::isSmall:
+        begin = small_;
+        break;
+    case Category::isMedium:
+        begin = ml_.data_;
+        break;
+    case Category::isLarge:
+        begin = mutableDataLarge();
+        break;
+    default:
+        break;
+    }
     return *(begin + pos);
 }
-const char& Wnstring::operator[](size_t pos) const 
+const char& Wnstring::operator[](size_t pos) const
 {
     const char* begin = c_str();
     return *(begin + pos);
@@ -201,9 +202,9 @@ void Wnstring::unshare(size_t minCapacity)
     size_t effectiveCapacity = std::max(minCapacity, ml_.capacity());
 
     auto const newRC = RefCounted::create(&effectiveCapacity);
-    
+
     memcpy(newRC->data_, ml_.data_, ml_.size_ + 1);
-    
+
     RefCounted::decrementRefs(ml_.data_);
     ml_.data_ = newRC->data_;
     ml_.setCapacity(effectiveCapacity, Category::isLarge);
@@ -212,7 +213,7 @@ void Wnstring::unshare(size_t minCapacity)
 Wnstring::~Wnstring()
 {
     if (category() == Category::isSmall) {
-      return;
+        return;
     }
     destroyMediumLarge();
 }
