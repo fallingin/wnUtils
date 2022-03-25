@@ -1,12 +1,14 @@
 #include "wnstring.h"
-#include <cstring>
-#include <cassert>
+
+#include <iostream>
 #include <sys/types.h> // for ssize_t
+using namespace std;
 
 Wnstring::Wnstring(const char* const data, const size_t size, bool disableSSO)
 {
     if (!disableSSO && size <= maxSmallSize) {
         initSmall(data, size);
+
     } else if (size <= maxMediumSize) {
         initMedium(data, size);
     } else {
@@ -36,7 +38,7 @@ void Wnstring::initSmall(const char* const data, const size_t size)
         }
     } else {
         if (size != 0) {
-            memcpy(small_,data,  size);
+            memcpy(small_, data, size);
         }
     }
     setSmallSize(size);
@@ -46,19 +48,19 @@ void Wnstring::initMedium(const char* const data, const size_t size)
 {
     auto const allocSize = (1 + size) * sizeof(char);
     ml_.data_ = new char[allocSize];
-    memcpy(ml_.data_,data,  size);
+    memcpy(ml_.data_, data, size);
     ml_.size_ = size;
     ml_.setCapacity(allocSize - 1, Category::isMedium);
     ml_.data_[size] = '\0';
 }
 void Wnstring::initLarge(const char* const data, const size_t size)
 {
-    // size_t effectiveCapacity = size;
-    // auto const newRC = RefCounted::create(data, &effectiveCapacity);
-    // ml_.data_ = newRC->data_;
-    // ml_.size_ = size;
-    // ml_.setCapacity(effectiveCapacity, Category::isLarge);
-    // ml_.data_[size] = '\0';
+    size_t effectiveCapacity = size;
+    auto const newRC = RefCounted::create(data, &effectiveCapacity);
+    ml_.data_ = newRC->data_;
+    ml_.size_ = size;
+    ml_.setCapacity(effectiveCapacity, Category::isLarge);
+    ml_.data_[size] = '\0';
 }
 size_t Wnstring::size() const
 {
@@ -81,14 +83,13 @@ size_t Wnstring::capacity() const
     switch (category()) {
     case Category::isSmall:
         return maxSmallSize;
-    // case Category::isLarge:
-    //     // For large-sized strings, a multi-referenced chunk has no
-    //     // available capacity. This is because any attempt to append
-    //     // data would trigger a new allocation.
-    //     if (RefCounted::refs(ml_.data_) > 1) {
-    //         return ml_.size_;
-    //     }
-    //     break;
+    case Category::isLarge:
+        // 对于大型字符串，一个多引用的块没有可用的容量。
+        // 这是因为任何附加的操作都将触发新的分配。
+        if (RefCounted::refs(ml_.data_) > 1) {
+            return ml_.size_;
+        }
+        break;
     case Category::isMedium:
     default:
         break;
@@ -112,6 +113,14 @@ void Wnstring::setSmallSize(size_t s)
 Category Wnstring::category() const
 {
     return static_cast<Category>(bytes_[lastChar] & categoryExtractMask);
+}
+
+const char* Wnstring::c_str() const
+{
+    const char* ptr = ml_.data_;
+    // 使用这个语法, GCC 和 Clang 会生成 a CMOV（条件传送指令） 而不会进行 “处理器分支预测” 这一步，减少控制冒险
+    ptr = (category() == Category::isSmall) ? small_ : ptr;
+    return ptr;
 }
 
 Wnstring::~Wnstring()
