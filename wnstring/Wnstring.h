@@ -4,6 +4,8 @@
 #include <cassert>
 #include <cstddef>
 #include <cstring>
+#include <cstdlib>
+
 
 // small strings（SSO）时，使用 union 中的 Char small_存储字符串，即对象本身的栈空间。
 
@@ -16,6 +18,26 @@ constexpr static uint8_t categoryExtractMask = 0xC0; // 11000000
 constexpr static size_t kCategoryShift = (sizeof(size_t) - 1) * 8;
 constexpr static size_t capacityExtractMask = ~(static_cast<size_t>(categoryExtractMask) << kCategoryShift);
 constexpr static bool WNSTRING_DISABLE_SSO = false;
+
+inline void* checkedRealloc(void* ptr, size_t size) {
+    void* p = realloc(ptr, size);
+    return p;
+}
+inline void* smartRealloc(void* p,const size_t currentSize,const size_t currentCapacity,const size_t newCapacity) {
+    assert(p);
+    assert(currentSize <= currentCapacity && currentCapacity < newCapacity);
+    auto const slack = currentCapacity - currentSize;
+    if (slack * 2 > currentSize) {
+        // Too much slack, malloc-copy-free cycle:
+        auto const result = new char[newCapacity];
+        std::memcpy(result, p, currentSize);
+        delete (char*)p;
+        return result;
+    }
+    // If there's not too much slack, we realloc in hope of coalescing
+    return checkedRealloc(p, newCapacity);
+}
+
 
 typedef uint8_t category_type;
 enum class Category : category_type {
@@ -40,7 +62,7 @@ struct RefCounted {
     static RefCounted* create(size_t* size)
     {
         const size_t allocSize = getDataOffset() + (*size + 1) * sizeof(char);
-        auto result = new RefCounted;
+        auto result = reinterpret_cast<RefCounted*>(new char[allocSize]);
         result->refCount_.store(1, std::memory_order_release);
         *size = (allocSize - getDataOffset()) - 1;
         return result;
@@ -54,11 +76,26 @@ struct RefCounted {
         return result;
     }
     // 从data获取RefCounted*
+    // 转换不同类型结构体的指针并做运算，这里的做法是 ： 
+    // char* -> void* -> unsigned char* -> 与size_t做减法 -> void * -> RefCounted*
     static RefCounted* fromData(char* p)
     {
         return static_cast<RefCounted*>(static_cast<void*>(
             static_cast<unsigned char*>(static_cast<void*>(p)) - getDataOffset()));
     }
+    // static RefCounted * fromData(Char * p) {
+    //     // 转换data_[1]的地址
+    //     void* voidDataAddr = static_cast<void*>(p);
+    //     unsigned char* unsignedDataAddr = static_cast<unsigned char*>(voidDataAddr);
+
+    //     // 获取data_[1]在结构体的偏移量再相减，得到的就是所属RefCounted的地址
+    //     unsigned char* unsignedRefAddr = unsignedDataAddr - getDataOffset();
+
+    //     void* voidRefAddr = static_cast<void*>(unsignedRefAddr);
+    //     RefCounted* refCountAddr = static_cast<RefCounted*>(voidRefAddr);
+
+    //     return refCountAddr;
+    // }
     // 获得引用数量
     static size_t refs(char* p)
     {
@@ -105,11 +142,29 @@ constexpr static uint8_t maxMediumSize = 0xFF; // 11111111(255)
 class Wnstring {
 public:
     Wnstring(const char* const data, const size_t size, bool disableSSO = WNSTRING_DISABLE_SSO);
+    Wnstring(const Wnstring& rhs);
     ~Wnstring();
 
     size_t capacity() const;
     size_t size() const;
     const char* c_str() const;
+    // size_type是由string类类型和vector类类型定义的类型，
+    // 用于保存任意string对象或vector对象的长度
+    char& operator[](size_t pos);
+    const char& operator[](size_t pos) const;
+    bool empty() const;
+
+    Wnstring& operator=(const Wnstring& str) ;// fix
+    Wnstring& operator=(const char* const s) ;// fix
+    bool operator==(const Wnstring& str) const;// fix
+    Wnstring operator+(const Wnstring& rhs);// fix
+    
+    void clear(); // fix
+    size_t find (const char* const s, size_t pos = 0) const; // fix BM
+    size_t find (const Wnstring& str, size_t pos = 0) const; // fix BM
+    void pop_back(); // fix
+    int compare(const Wnstring& str) const; // fix
+
 
 
 private:
@@ -125,7 +180,12 @@ private:
     void initSmall(const char* const data, const size_t size);
     void initMedium(const char* const data, const size_t size);
     void initLarge(const char* const data, const size_t size);
-
+    void copySmall(const Wnstring& rhs);
+    void copyMedium(const Wnstring& rhs);
+    void copyLarge(const Wnstring& rhs);
+    void destroyMediumLarge();
+    char* mutableDataLarge();
+    void unshare(size_t minCapacity = 0);
     
 };
 

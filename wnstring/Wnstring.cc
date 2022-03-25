@@ -15,6 +15,22 @@ Wnstring::Wnstring(const char* const data, const size_t size, bool disableSSO)
         initLarge(data, size);
     }
 }
+Wnstring::Wnstring(const Wnstring& rhs){
+    assert(&rhs != this);
+    switch (rhs.category()) {
+        case Category::isSmall:
+            copySmall(rhs);
+            break;
+        case Category::isMedium:
+            copyMedium(rhs);
+            break;
+        case Category::isLarge:
+            copyLarge(rhs);
+            break;
+        default:
+            break;
+    }
+}
 // 首先，如果传入的字符串地址是内存对齐的，则配合 reinterpret_cast 进行 word-wise copy，提高效率。
 // 否则，调用 podCopy 进行 memcpy。
 // 最后，通过 setSmallSize 设置 small string 的 size。
@@ -62,6 +78,28 @@ void Wnstring::initLarge(const char* const data, const size_t size)
     ml_.setCapacity(effectiveCapacity, Category::isLarge);
     ml_.data_[size] = '\0';
 }
+// 虽然 small strings 的情况下，字符串存储在 small中，
+// 但是我们只需要把 ml直接赋值即可，因为在一个 union 中
+void Wnstring::copySmall(const Wnstring& rhs)
+{
+    ml_ = rhs.ml_;
+}
+void Wnstring::copyMedium(const Wnstring& rhs)
+{
+    auto const allocSize = (1 + rhs.ml_.size_) * sizeof(char);
+    ml_.data_ = new char[allocSize];
+
+    memcpy(ml_.data_,rhs.ml_.data_, rhs.ml_.size_ + 1);
+    ml_.size_ = rhs.ml_.size_;
+    ml_.setCapacity(allocSize - 1, Category::isMedium);
+}
+// COW 方式：直接赋值 ml，内含指向共享字符串的指针。
+// 共享字符串的引用计数加 1。
+void Wnstring::copyLarge(const Wnstring& rhs)
+{
+    ml_ = rhs.ml_;
+    RefCounted::incrementRefs(ml_.data_);
+}
 size_t Wnstring::size() const
 {
     size_t ret = ml_.size_;
@@ -73,6 +111,11 @@ size_t Wnstring::size() const
 
     return ret;
 }
+bool Wnstring::empty() const
+{
+    return (size() == 0);
+}
+
 // small strings : 直接返回 maxSmallSize。
 // medium strings : 返回 ml_.capacity()。
 // large strings :
@@ -122,7 +165,63 @@ const char* Wnstring::c_str() const
     ptr = (category() == Category::isSmall) ? small_ : ptr;
     return ptr;
 }
+char& Wnstring::operator[](size_t pos) 
+{
+    char* begin = nullptr;
+    switch (category()) {
+        case Category::isSmall:
+            begin = small_;
+            break;
+        case Category::isMedium:
+            begin = ml_.data_;
+            break;
+        case Category::isLarge:
+            begin = mutableDataLarge();
+            break;
+        default:
+            break;
+        }
+    return *(begin + pos);
+}
+const char& Wnstring::operator[](size_t pos) const 
+{
+    const char* begin = c_str();
+    return *(begin + pos);
+}
+char* Wnstring::mutableDataLarge()
+{
+    if (RefCounted::refs(ml_.data_) > 1) { // Ensure unique.
+        unshare();
+    }
+    return ml_.data_;
+}
+// 注意此时还不会设置 size，因为还不知道应用程序对字符串进行什么修改。
+void Wnstring::unshare(size_t minCapacity)
+{
+    size_t effectiveCapacity = std::max(minCapacity, ml_.capacity());
+
+    auto const newRC = RefCounted::create(&effectiveCapacity);
+    
+    memcpy(newRC->data_, ml_.data_, ml_.size_ + 1);
+    
+    RefCounted::decrementRefs(ml_.data_);
+    ml_.data_ = newRC->data_;
+    ml_.setCapacity(effectiveCapacity, Category::isLarge);
+}
 
 Wnstring::~Wnstring()
 {
+    if (category() == Category::isSmall) {
+      return;
+    }
+    destroyMediumLarge();
+}
+void Wnstring::destroyMediumLarge()
+{
+    auto const c = category();
+    if (c == Category::isMedium) {
+        delete ml_.data_;
+    } else {
+        RefCounted::decrementRefs(ml_.data_);
+    }
 }
