@@ -108,7 +108,7 @@ size_t Wnstring::size() const
     typedef typename std::make_unsigned<char>::type UChar;
     auto maybeSmallSize = size_t(maxSmallSize) - size_t(static_cast<UChar>(small_[maxSmallSize]));
     // 使用这个语法, GCC 和 Clang 会生成 a CMOV（条件传送指令） 而不会进行 “处理器分支预测” 这一步，减少控制冒险
-    ret = (static_cast<ssize_t>(maybeSmallSize) >= 0) ? maybeSmallSize : ret;
+    ret = (static_cast<size_t>(maybeSmallSize) >= 0) ? maybeSmallSize : ret;
 
     return ret;
 }
