@@ -8,7 +8,6 @@ class Logger {
 public:
     enum LogLevel //日志级别
     {
-        TRACE,
         DEBUG,
         INFO,
         WARN,
