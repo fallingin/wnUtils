@@ -14,8 +14,9 @@ using namespace detail;
 
 namespace detail {
 
-const char digits[] = "0123456789";
-static_assert(sizeof digits == 11, "wrong number of digits");
+const char digits[] = "9876543210123456789";
+const char *zero = digits + 9;
+static_assert(sizeof digits == 20, "wrong number of digits");
 
 const char digitsHex[] = "0123456789ABCDEF";
 static_assert(sizeof digitsHex == 17, "wrong number of digitsHex");
@@ -30,7 +31,7 @@ size_t convert(char buf[], T value)
     do {
         int lsd = static_cast<int>(i % 10);
         i /= 10;
-        *p++ = digits[lsd];
+        *p++ = zero[lsd];
     } while (i != 0);
 
     if (value < 0) {
