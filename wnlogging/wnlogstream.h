@@ -2,8 +2,8 @@
 #ifndef LOGSTREAM_H
 #define LOGSTREAM_H
 
-#include <assert.h>
-#include <string.h> // memcpy
+#include <cassert>
+#include <cstring> // memcpy
 #include <string>
 
 
@@ -24,29 +24,26 @@ inline To implicit_cast(From const& f)
 }
 namespace detail {
 
-    const int kSmallBuffer = 4000;
-    const int kLargeBuffer = 4000 * 1000;
+    constexpr int kSmallBuffer = 4000;
+    constexpr int kLargeBuffer = 4000 * 1000;
 
     template <int SIZE>
     class FixedBuffer : noncopyable {
     public:
-        FixedBuffer()
-            : cur_(data_)
+        FixedBuffer(): cur_(data_)
         {
-            setCookie(cookieStart);
         }
 
-        ~FixedBuffer()
-        {
-            setCookie(cookieEnd);
-        }
-
-        void append(const char* /*restrict*/ buf, size_t len)
+        void append(const char* buf, size_t len)
         {
             // FIXME: append partially
             if (implicit_cast<size_t>(avail()) > len) {
                 memcpy(cur_, buf, len);
                 cur_ += len;
+            }else{
+                int ava = avail();
+                memcpy(cur_, buf, ava);
+                cur_ += ava;
             }
         }
 
@@ -58,20 +55,16 @@ namespace detail {
         int avail() const { return static_cast<int>(end() - cur_); }
         void add(size_t len) { cur_ += len; }
 
-        void reset() { cur_ = data_; } //惰性删除
+        void reset() { cur_ = data_; } //惰性删除，同redis
         void bzero() { memset(data_, 0, sizeof data_); }
 
-        void setCookie(void (*cookie)()) { cookie_ = cookie; }
         // for used by unit test
         std::string toString() const { return std::string(data_, length()); }
 
     private:
         const char* end() const { return data_ + sizeof data_; }
-        // Must be outline function for cookies.
-        static void cookieStart();
-        static void cookieEnd();
 
-        void (*cookie_)();
+
         char data_[SIZE];
         char* cur_;
     };
@@ -89,6 +82,16 @@ public:
         buffer_.append(v ? "1" : "0", 1);
         return *this;
     }
+    self& operator<<(char v)
+    {
+        buffer_.append(&v, 1);
+        return *this;
+    }
+    self& operator<<(float v)
+    {
+        *this << static_cast<double>(v);
+        return *this;
+    }
 
     self& operator<<(short);
     self& operator<<(unsigned short);
@@ -101,20 +104,9 @@ public:
 
     self& operator<<(const void*);
 
-    self& operator<<(float v)
-    {
-        *this << static_cast<double>(v);
-        return *this;
-    }
+    
     self& operator<<(double);
     // self& operator<<(long double);
-
-    self& operator<<(char v)
-    {
-        buffer_.append(&v, 1);
-        return *this;
-    }
-
     // self& operator<<(signed char);
     // self& operator<<(unsigned char);
 

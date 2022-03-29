@@ -2,9 +2,9 @@
 
 #include "wnlogging.h"
 
-#include <errno.h>
-#include <stdio.h>
-#include <time.h>
+#include <cerrno>
+#include <cstdio>
+#include <ctime>
 
 #include <iostream>
 #include <sstream>
@@ -12,19 +12,17 @@
 
 
 const char* LogLevelName[Logger::NUM_LOG_LEVELS] = {
-    "DEBUG ",
-    "INFO  ",
-    "WARN  ",
-    "ERROR ",
-    "FATAL ",
+    " DEBUG ",
+    " INFO  ",
+    " WARN  ",
+    " ERROR ",
+    " FATAL ",
 };
 
 // 协助类：为了在编译时获得字符串长度
 class T {
 public:
-    T(const char* str, unsigned len)
-        : str_(str)
-        , len_(len)
+    T(const char* str, unsigned len): str_(str), len_(len)
     {
         assert(strlen(str) == len_);
     }
@@ -48,12 +46,19 @@ inline LogStream& operator<<(LogStream& s, const Logger::SourceFile& v)
 void defaultOutput(const char* msg, int len)
 {
     size_t n = fwrite(msg, 1, len, stdout);
-    // FIXME check n
-    (void)n;
+    // 如果流中的字符串长度为空
+    if(n == 0){
+
+    }
+    // 写入失败（写入的长度跟实际长度不同）
+    if(n != len){
+
+    }
 }
 
 void defaultFlush()
 {
+    // 刷新stdout写入文件
     fflush(stdout);
 }
 
@@ -61,21 +66,16 @@ Logger::OutputFunc g_output = defaultOutput;
 Logger::FlushFunc g_flush = defaultFlush;
 
 
-
-
 Logger::Impl::Impl(LogLevel level, int savedErrno, const SourceFile& file, int line)
-    : stream_()
-    , level_(level)
-    , line_(line)
-    , basename_(file)
+    : stream_(), level_(level), line_(line), basename_(file)
 {
     formatTime();
 
-    stream_ << T(LogLevelName[level], 6);
+    stream_ << T(LogLevelName[level], 7);
 
     std::thread::id threadId = std::this_thread::get_id();
     int* pi = (int*)&threadId;
-    stream_ << "threadID:" << *pi << " ";
+    stream_ << "[threadID:" << *pi << "] ";
 
     if (savedErrno != 0) {
         stream_ << strerror(savedErrno) << "(errno=" << savedErrno << ") ";
@@ -89,26 +89,25 @@ void Logger::Impl::formatTime()
     strftime(tmp, sizeof(tmp), "[%H:%M:%S]", localtime(&t));
     time_ = tmp;
     stream_ << time_;
-    assert(time_.size() == 10);
 }
 
 void Logger::Impl::finish()
 {
     if (level_ == Logger::DEBUG)
         stream_ << " [" << __DATE__ << " " << __TIME__ << "]"; //编译时间
-    stream_ << " -" << basename_ << ':' << line_ << '\n';
+    stream_ << " --" << basename_ << ':' << line_ << '\n';
 }
 
 Logger::Logger(SourceFile file, int line, LogLevel level, const char* func)
     : impl_(level, 0, file, line)
 {
-    impl_.stream_ << "[" << func << "] ";
+    impl_.stream_ << "[fuc:" << func << "] msg: ";
 }
 
 Logger::Logger(SourceFile file, int line, bool toAbort, const char* func)
     : impl_(toAbort ? FATAL : ERROR, errno, file, line)
 {
-    impl_.stream_ << "[" << func << "] ";
+    impl_.stream_ << "[fuc:" << func << "] msg: ";
 }
 
 Logger::~Logger()

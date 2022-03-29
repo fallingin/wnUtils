@@ -18,20 +18,18 @@ public:
 
     class SourceFile {
     public:
+        // 可接受可变的const char [N]
         template <int N>
-        SourceFile(const char (&arr)[N])
-            : data_(arr)
-            , size_(N - 1)
+        SourceFile(const char (&arr)[N]): data_(arr), size_(N - 1)
         {
-            const char* slash = strrchr(data_, '/'); // 内置功能
+            const char* slash = strrchr(data_, '/'); 
             if (slash) {
                 data_ = slash + 1;
                 size_ -= static_cast<int>(data_ - arr);
             }
         }
 
-        explicit SourceFile(const char* filename)
-            : data_(filename)
+        explicit SourceFile(const char* filename): data_(filename)
         {
             const char* slash = strrchr(filename, '/');
             if (slash) {
@@ -45,6 +43,7 @@ public:
     };
 
     Logger(SourceFile file, int line, LogLevel level, const char* func);
+    // 错误流用
     Logger(SourceFile file, int line, bool toAbort, const char* func);
     ~Logger();
 
@@ -56,12 +55,13 @@ public:
     static void setFlush(FlushFunc);
 
 private:
+    // 用来格式化固定输出的类
     class Impl {
     public:
         typedef Logger::LogLevel LogLevel;
         Impl(LogLevel level, int old_errno, const SourceFile& file, int line);
-        void formatTime(); //格式时间
-        void finish();
+        void formatTime(); //格式化时间
+        void finish(); // 用于析构函数将缓存写入流文件
 
         std::string time_;
         LogStream stream_;
@@ -105,7 +105,7 @@ private:
 // initializer lists.
 
 #define CHECK_NOTNULL(val) \
-    ::muduo::CheckNotNull(__FILE__, __LINE__, "'" #val "' Must be non NULL", (val))
+    CheckNotNull(__FILE__, __LINE__, "'" #val "' Must be non NULL", (val))
 
 // A small helper for CHECK_NOTNULL().
 template <typename T>

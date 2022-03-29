@@ -2,10 +2,10 @@
 #include "wnlogstream.h"
 
 #include <algorithm>
-#include <assert.h>
+#include <cassert>
 #include <limits>
-#include <stdint.h>
-#include <stdio.h>
+#include <cstdint>
+#include <cstdio>
 #include <type_traits>
 
 using namespace detail;
@@ -14,14 +14,13 @@ using namespace detail;
 
 namespace detail {
 
-const char digits[] = "9876543210123456789";
-const char* zero = digits + 9;
-static_assert(sizeof(digits) == 20, "wrong number of digits");
+const char digits[] = "0123456789";
+static_assert(sizeof digits == 11, "wrong number of digits");
 
 const char digitsHex[] = "0123456789ABCDEF";
 static_assert(sizeof digitsHex == 17, "wrong number of digitsHex");
 
-// Efficient Integer to String Conversions, by Matthew Wilson.
+// int 转字符串（ Matthew Wilson设计的“带符号整形数据的出发与余数”算法）
 template <typename T>
 size_t convert(char buf[], T value)
 {
@@ -31,7 +30,7 @@ size_t convert(char buf[], T value)
     do {
         int lsd = static_cast<int>(i % 10);
         i /= 10;
-        *p++ = zero[lsd];
+        *p++ = digits[lsd];
     } while (i != 0);
 
     if (value < 0) {
@@ -61,31 +60,9 @@ size_t convertHex(char buf[], uintptr_t value)
 }
 
 template class FixedBuffer<kSmallBuffer>;
-template class FixedBuffer<kLargeBuffer>;
 
 } // namespace detail
 
-template <int SIZE>
-void FixedBuffer<SIZE>::cookieStart()
-{
-}
-
-template <int SIZE>
-void FixedBuffer<SIZE>::cookieEnd()
-{
-}
-
-void LogStream::staticCheck()
-{
-    static_assert(kMaxNumericSize - 10 > std::numeric_limits<double>::digits10,
-        "kMaxNumericSize is large enough");
-    static_assert(kMaxNumericSize - 10 > std::numeric_limits<long double>::digits10,
-        "kMaxNumericSize is large enough");
-    static_assert(kMaxNumericSize - 10 > std::numeric_limits<long>::digits10,
-        "kMaxNumericSize is large enough");
-    static_assert(kMaxNumericSize - 10 > std::numeric_limits<long long>::digits10,
-        "kMaxNumericSize is large enough");
-}
 
 template <typename T>
 void LogStream::formatInteger(T v)
@@ -157,7 +134,6 @@ LogStream& LogStream::operator<<(const void* p)
     return *this;
 }
 
-// FIXME: replace this with Grisu3 by Florian Loitsch.
 LogStream& LogStream::operator<<(double v)
 {
     if (buffer_.avail() >= kMaxNumericSize) {
@@ -165,4 +141,17 @@ LogStream& LogStream::operator<<(double v)
         buffer_.add(len);
     }
     return *this;
+}
+
+// 选取 kMaxNumericSize 值时用
+void LogStream::staticCheck()
+{
+    static_assert(kMaxNumericSize - 10 > std::numeric_limits<double>::digits10,
+        "kMaxNumericSize is large enough");
+    static_assert(kMaxNumericSize - 10 > std::numeric_limits<long double>::digits10,
+        "kMaxNumericSize is large enough");
+    static_assert(kMaxNumericSize - 10 > std::numeric_limits<long>::digits10,
+        "kMaxNumericSize is large enough");
+    static_assert(kMaxNumericSize - 10 > std::numeric_limits<long long>::digits10,
+        "kMaxNumericSize is large enough");
 }
