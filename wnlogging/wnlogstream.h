@@ -1,6 +1,6 @@
 
-#ifndef LOGSTREAM_H
-#define LOGSTREAM_H
+#ifndef WNLOGSTREAM_H
+#define WNLOGSTREAM_H
 
 #include <cassert>
 #include <cstring> // memcpy

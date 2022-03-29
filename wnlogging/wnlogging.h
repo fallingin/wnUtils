@@ -1,5 +1,5 @@
-#ifndef LOGGING_H
-#define LOGGING_H
+#ifndef WNLOGGING_H
+#define WNLOGGING_H
 
 #include "wnlogstream.h"
 
